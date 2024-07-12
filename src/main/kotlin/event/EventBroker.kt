@@ -1,7 +1,9 @@
 package event
 
 import java.util.concurrent.ConcurrentHashMap
+import java.util.concurrent.Executors
 import java.util.concurrent.LinkedBlockingQueue
+import java.util.concurrent.atomic.AtomicBoolean
 import kotlin.reflect.KClass
 
 /*
@@ -16,8 +18,19 @@ object EventBroker {
         ConcurrentHashMap<KClass<out Event>, ConcurrentHashMap<KClass<out EventConsumer>, MutableList<EventConsumer>>> =
         ConcurrentHashMap()
     private val events = LinkedBlockingQueue<Event>()
+    private val threadPool = Executors.newFixedThreadPool(30)
+    private var shutdown = AtomicBoolean(false)
+    private val shutdownLock = Object()
 
-    fun publish(event: Event) {
+    init {
+        listen()
+    }
+
+    fun add(event: Event) {
+        if (shutdown.get()) {
+            throw IllegalStateException("$EventBroker is shutdown")
+        }
+        // TODO: 추후 offer로 바꾸고 에러 처리
         events.put(event)
     }
 
@@ -37,6 +50,37 @@ object EventBroker {
                     ).add(eventConsumer)
                     eventConsumers
                 }
+            }
+        }
+    }
+
+    fun shutdown() {
+        if (shutdown.compareAndSet(false, true)) {
+            val t =
+                Thread {
+                    synchronized(shutdownLock) {
+                        while (events.isNotEmpty()) {
+                            shutdownLock.wait()
+                        }
+                    }
+                }
+            t.start()
+            t.join()
+            threadPool.shutdown()
+        }
+    }
+
+    private fun listen() {
+        while (true) {
+            val event = events.take()
+            val eventConsumers = requireNotNull(eventConsumers[event::class]).values.flatten()
+            eventConsumers.forEach { eventConsumer ->
+                threadPool.execute {
+                    eventConsumer.consume(event)
+                }
+            }
+            if (shutdown.get() && events.isEmpty()) {
+                shutdownLock.notify()
             }
         }
     }
