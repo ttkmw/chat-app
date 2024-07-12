@@ -10,7 +10,9 @@ repositories {
 }
 
 dependencies {
+    implementation(kotlin("reflect"))
     testImplementation(kotlin("test"))
+    testImplementation("org.mockito:mockito-core:5.12.0")
 }
 
 tasks.test {
