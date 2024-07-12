@@ -6,6 +6,7 @@ import kotlin.reflect.full.hasAnnotation
 import kotlin.reflect.full.isSubtypeOf
 import kotlin.reflect.full.starProjectedType
 import kotlin.reflect.full.valueParameters
+import kotlin.reflect.jvm.jvmErasure
 import kotlin.reflect.typeOf
 
 abstract class EventConsumer {
@@ -26,7 +27,8 @@ abstract class EventConsumer {
                             method.valueParameters.size == 1 &&
                                 method.valueParameters.first().type.isSubtypeOf(
                                     Event::class.starProjectedType,
-                                )
+                                ) &&
+                                !method.valueParameters.first().type.jvmErasure.isAbstract
                         },
                     )
                 }
