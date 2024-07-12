@@ -13,8 +13,8 @@ class EventBrokerTest {
         // given
         val eventConsumers =
             listOf(
-                Participant.join(mock(SocketChannel::class.java)),
-                Participant.join(mock(SocketChannel::class.java)),
+                User.join(mock(SocketChannel::class.java)),
+                User.join(mock(SocketChannel::class.java)),
                 MockEventConsumer(),
             )
 

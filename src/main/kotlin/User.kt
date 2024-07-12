@@ -1,20 +1,20 @@
 import event.Event
 import event.EventConsumer
 import event.OnEvent
-import event.ParticipantDisconnectionStarted
+import event.UserDisconnectionStarted
 import java.net.InetSocketAddress
 import java.nio.ByteBuffer
 import java.nio.channels.SocketChannel
 import kotlin.reflect.KClass
 
-class Participant(
+class User(
     private val socketChannel: SocketChannel,
 ) : EventConsumer() {
     private val byteBuffer = ByteBuffer.allocate(1024)
     var disconnected = false
 
     @OnEvent
-    fun onDisconnectionStarted(event: ParticipantDisconnectionStarted) {
+    fun onDisconnectionStarted(event: UserDisconnectionStarted) {
     }
 
     fun read(from: InetSocketAddress) {
@@ -34,8 +34,8 @@ class Participant(
     }
 
     companion object {
-        fun join(socketChannel: SocketChannel): Participant {
-            return Participant(
+        fun join(socketChannel: SocketChannel): User {
+            return User(
                 socketChannel = socketChannel,
             )
         }

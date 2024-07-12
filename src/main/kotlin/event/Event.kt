@@ -10,8 +10,8 @@ interface Event {
 @Retention(AnnotationRetention.RUNTIME)
 annotation class OnEvent()
 
-class ParticipantJoined(override val uuid: UUID) : Event
+class UserJoined(override val uuid: UUID) : Event
 
-class ParticipantDisconnectionStarted(override val uuid: UUID) : Event
+class UserDisconnectionStarted(override val uuid: UUID) : Event
 
-class MessageSentToParticipants(override val uuid: UUID) : Event
+class MessageSentToUsers(override val uuid: UUID) : Event

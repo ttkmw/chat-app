@@ -19,7 +19,7 @@ fun main() {
     val decoder = StandardCharsets.UTF_8.newDecoder()
     val threadPool = Executors.newFixedThreadPool(10)
     val locks = ConcurrentHashMap<SocketAddress, ReentrantLock>()
-    val participants = ConcurrentHashMap<SocketAddress, SocketChannel>()
+    val users = ConcurrentHashMap<SocketAddress, SocketChannel>()
     ServerSocketChannel.open().use { serverSocketChannel ->
         Selector.open().use { selector ->
             serverSocketChannel.bind(InetSocketAddress("localhost", 8081))
@@ -39,9 +39,9 @@ fun main() {
                         threadPool.execute {
                             socketChannel.configureBlocking(false)
                             socketChannel.register(selector, SelectionKey.OP_READ)
-                            sendWelcomeMessage(socketChannel, encoder, participants)
-                            sendThereIsNewParticipantMessage(participants, encoder, socketChannel)
-                            participants[socketChannel.remoteAddress] = socketChannel
+                            sendWelcomeMessage(socketChannel, encoder, users)
+                            sendThereIsNewUserMessage(users, encoder, socketChannel)
+                            users[socketChannel.remoteAddress] = socketChannel
                         }
                     } else if (selectedKey.isReadable) {
                         threadPool.execute {
@@ -52,9 +52,10 @@ fun main() {
                             // 클라이언트별로 lock을 걸어야한다.
                             val socketChannel = (selectedKey.channel() as SocketChannel)
                             val readMessage = StringBuilder()
-                            val lock = locks.computeIfAbsent(socketChannel.remoteAddress) {
-                                ReentrantLock()
-                            }
+                            val lock =
+                                locks.computeIfAbsent(socketChannel.remoteAddress) {
+                                    ReentrantLock()
+                                }
                             lock.lock()
                             var disconnected: Boolean
                             try {
@@ -71,25 +72,27 @@ fun main() {
                             if (readMessage.isNotEmpty()) {
                                 readMessage.insert(0, "Message from [${socketChannel.remoteAddress}] : ")
                                 readMessage.append("\n")
-                                sendMessageFromOtherParticipant(participants.filter { it.key != socketChannel.remoteAddress }, readMessage, encoder)
+                                sendMessageFromOtherUser(users.filter { it.key != socketChannel.remoteAddress }, readMessage, encoder)
                             }
 
                             if (disconnected) {
                                 lock.lock()
                                 try {
-                                    if (!participants.contains(socketChannel)) {
-                                         return@execute
+                                    if (!users.contains(socketChannel)) {
+                                        return@execute
                                     }
-                                    sendParticipantIsDisconnectedMessage(participants.filter { it.key != socketChannel.remoteAddress }, socketChannel, encoder)
-                                    participants.remove(socketChannel.remoteAddress)
+                                    sendUserIsDisconnectedMessage(
+                                        users.filter { it.key != socketChannel.remoteAddress },
+                                        socketChannel,
+                                        encoder,
+                                    )
+                                    users.remove(socketChannel.remoteAddress)
                                     locks.remove(socketChannel.remoteAddress)
                                     socketChannel.close()
                                 } finally {
                                     lock.unlock()
                                 }
-
                             }
-
                         }
                     }
                 }
@@ -98,38 +101,58 @@ fun main() {
     }
 }
 
-fun sendParticipantIsDisconnectedMessage(receivers: Map<SocketAddress, SocketChannel>, outParticipant: SocketChannel, encoder: CharsetEncoder) {
-    val message = StringBuilder("[${outParticipant.remoteAddress}] is out of beyond eyesight network.\n")
+fun sendUserIsDisconnectedMessage(
+    receivers: Map<SocketAddress, SocketChannel>,
+    outUser: SocketChannel,
+    encoder: CharsetEncoder,
+) {
+    val message = StringBuilder("[${outUser.remoteAddress}] is out of beyond eyesight network.\n")
     receivers.forEach { (_, receiver) ->
         sendMessage(receiver, message.toString(), encoder)
     }
 }
 
-fun sendMessageFromOtherParticipant(receivers: Map<SocketAddress, SocketChannel>, fullMessage: StringBuilder, encoder: CharsetEncoder) {
+fun sendMessageFromOtherUser(
+    receivers: Map<SocketAddress, SocketChannel>,
+    fullMessage: StringBuilder,
+    encoder: CharsetEncoder,
+) {
     receivers.forEach { (_, receiver) ->
         sendMessage(receiver, fullMessage.toString(), encoder)
     }
 }
 
-fun sendThereIsNewParticipantMessage(participants: ConcurrentHashMap<SocketAddress, SocketChannel>, encoder: CharsetEncoder, newParticipant: SocketChannel) {
-    val message = StringBuilder("There is new participant: ")
-    participants.forEach { (_, participant) ->
-        message.append("[${newParticipant.remoteAddress}]\n")
-        sendMessage(participant, message.toString(), encoder)
+fun sendThereIsNewUserMessage(
+    users: ConcurrentHashMap<SocketAddress, SocketChannel>,
+    encoder: CharsetEncoder,
+    newUser: SocketChannel,
+) {
+    val message = StringBuilder("There is new user: ")
+    users.forEach { (_, user) ->
+        message.append("[${newUser.remoteAddress}]\n")
+        sendMessage(user, message.toString(), encoder)
     }
 }
 
-fun sendWelcomeMessage(socketChannel: SocketChannel, encoder: CharsetEncoder, participants: ConcurrentHashMap<SocketAddress, SocketChannel>) {
+fun sendWelcomeMessage(
+    socketChannel: SocketChannel,
+    encoder: CharsetEncoder,
+    users: ConcurrentHashMap<SocketAddress, SocketChannel>,
+) {
     val message = StringBuilder("Welcome [${socketChannel.remoteAddress}]! ")
-    if (participants.isEmpty()) {
-        message.append("You are the first participant in beyond eyesight network.\n")
+    if (users.isEmpty()) {
+        message.append("You are the first users in beyond eyesight network.\n")
     } else {
-        message.append("There is ${participants.size} participants - ${participants.values.map { it.remoteAddress }.joinToString(separator = ",")}\n")
+        message.append("There is ${users.size} users - ${users.values.map { it.remoteAddress }.joinToString(separator = ",")}\n")
     }
     sendMessage(socketChannel, message.toString(), encoder)
 }
 
-private fun sendMessage(socketChannel: SocketChannel, message: String, encoder: CharsetEncoder) {
+private fun sendMessage(
+    socketChannel: SocketChannel,
+    message: String,
+    encoder: CharsetEncoder,
+) {
     val charBuffer = CharBuffer.wrap(message)
     val byteBuffer = ByteBuffer.allocate(2)
     while (charBuffer.hasRemaining()) {

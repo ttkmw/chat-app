@@ -9,7 +9,7 @@ import java.util.concurrent.LinkedBlockingQueue
 
 class ChatServer(private val serverSocketChannel: ServerSocketChannel, private val selector: Selector) {
     private val messageBox = ConcurrentHashMap<SocketAddress, LinkedBlockingQueue<ChatMessage>>()
-    private val participants = ConcurrentHashMap<SocketAddress, Participant>()
+    private val users = ConcurrentHashMap<SocketAddress, User>()
 
     fun run() {
         while (true) {
@@ -23,8 +23,8 @@ class ChatServer(private val serverSocketChannel: ServerSocketChannel, private v
                     selectedKey.channel()
                 } else if (selectedKey.isReadable) {
                     val sender =
-                        participants[(selectedKey.channel() as SocketChannel).remoteAddress] ?: throw IllegalStateException(
-                            "participant does not exists",
+                        users[(selectedKey.channel() as SocketChannel).remoteAddress] ?: throw IllegalStateException(
+                            "users does not exists",
                         )
                 }
             }
