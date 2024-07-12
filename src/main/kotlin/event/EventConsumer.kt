@@ -36,9 +36,6 @@ abstract class EventConsumer {
 
         onEvents =
             methods.associate { method ->
-                /*
-                 * TODO: * parameter 가 event 구현체여야 함. 인터페이스면 안됨 - 이 로직 EventConsumer로 옮기기. - MockClass에서 Event 인터페이스 받고 test해보기
-                 *  */
                 val eventClass =
                     method.valueParameters
                         .first().type.classifier as? KClass<*>

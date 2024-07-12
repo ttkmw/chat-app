@@ -12,8 +12,9 @@ import kotlin.reflect.KClass
 * 그렇게하면 disconnect immediately든, disconnect after send messages든, 사전 작업 후 disconnect를 처리할 수 있다.
 * */
 object EventBroker {
-    private val consumerClasses: ConcurrentHashMap<KClass<out Event>, KClass<out EventConsumer>> = ConcurrentHashMap()
-    private val consumerInstances: ConcurrentHashMap<KClass<out EventConsumer>, MutableList<EventConsumer>> = ConcurrentHashMap()
+    private val eventConsumers:
+        ConcurrentHashMap<KClass<out Event>, ConcurrentHashMap<KClass<out EventConsumer>, MutableList<EventConsumer>>> =
+        ConcurrentHashMap()
     private val events = LinkedBlockingQueue<Event>()
 
     fun publish(event: Event) {
@@ -21,18 +22,29 @@ object EventBroker {
     }
 
     fun register(eventConsumer: EventConsumer) {
-        val clazz = eventConsumer::class
+        val eventConsumerClass = eventConsumer::class
         val eventClasses = eventConsumer.getConsumingEvents().also { assert(it.isNotEmpty()) }
-        eventClasses.forEach { event ->
-            consumerClasses[event] = clazz
-        }
-        consumerInstances.compute(clazz) { _, instances ->
-            if (instances == null) {
-                mutableListOf(eventConsumer)
-            } else {
-                instances.add(eventConsumer)
-                instances
+
+        eventClasses.forEach { eventClass ->
+            eventConsumers.compute(eventClass) { _, eventConsumers ->
+                if (eventConsumers == null) {
+                    ConcurrentHashMap(listOf(eventConsumerClass to mutableListOf(eventConsumer)).toMap())
+                } else {
+                    (
+                        eventConsumers[eventConsumerClass] ?: throw IllegalStateException(
+                            "consumer class $eventConsumerClass must have consumer instances",
+                        )
+                    ).add(eventConsumer)
+                    eventConsumers
+                }
             }
         }
+    }
+
+    internal fun isRegistered(
+        eventClass: KClass<out Event>,
+        eventConsumer: EventConsumer,
+    ): Boolean {
+        return eventConsumers[eventClass]?.let { eventConsumers -> eventConsumers[eventConsumer::class]?.contains(eventConsumer) } ?: false
     }
 }

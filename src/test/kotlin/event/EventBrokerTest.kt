@@ -4,18 +4,29 @@ import MockEventConsumer
 import org.junit.jupiter.api.Test
 import org.mockito.Mockito.mock
 import java.nio.channels.SocketChannel
+import kotlin.test.assertTrue
 
 class EventBrokerTest {
     @Test
     fun register() {
-        val participant1 = Participant.join(mock(SocketChannel::class.java))
-        val participant2 = Participant.join(mock(SocketChannel::class.java))
+        // given
+        val eventConsumers =
+            listOf(
+                Participant.join(mock(SocketChannel::class.java)),
+                Participant.join(mock(SocketChannel::class.java)),
+                MockEventConsumer(),
+            )
 
-        val eventBroker = EventBroker
+        // when
+        eventConsumers.forEach {
+            EventBroker.register(it)
+        }
 
-        eventBroker.register(participant1)
-        eventBroker.register(participant2)
-        eventBroker.register(MockEventConsumer())
-        println(eventBroker)
+        // then
+        eventConsumers.forEach { eventConsumer ->
+            eventConsumer.getConsumingEvents().forEach { event ->
+                assertTrue { EventBroker.isRegistered(event, eventConsumer) }
+            }
+        }
     }
 }
