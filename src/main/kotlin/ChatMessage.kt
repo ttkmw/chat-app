@@ -1,19 +1,28 @@
-import java.net.InetSocketAddress
+import java.util.UUID
 
-data class ChatMessage(
-    val from: InetSocketAddress,
-    val to: InetSocketAddress,
-    val message: String,
+sealed class ChatMessage(
+    open val uuid: UUID,
+    open val from: UUID,
+    open val message: String,
 ) {
+    data class BroadcastChatMessage(
+        override val uuid: UUID,
+        override val from: UUID,
+        override val message: String,
+    ) : ChatMessage(
+            uuid = uuid,
+            from = from,
+            message = message,
+        )
+
     companion object {
-        fun of(
-            from: InetSocketAddress,
-            to: InetSocketAddress,
+        fun broadcast(
+            from: UUID,
             message: String,
-        ): ChatMessage {
-            return ChatMessage(
+        ): BroadcastChatMessage {
+            return BroadcastChatMessage(
+                uuid = UUID.randomUUID(),
                 from = from,
-                to = to,
                 message = message,
             )
         }

@@ -6,13 +6,6 @@ import java.util.concurrent.LinkedBlockingQueue
 import java.util.concurrent.atomic.AtomicBoolean
 import kotlin.reflect.KClass
 
-/*
-* 1. regiser 테스트하기
-* 2. EventBroker 싱글톤으로 만들기
-* 3. EventBroker에 스레드 두고 계속 돌리기
-* 4. disconnect 시 -> disconnected 이벤트 날리고 -> disconnect 이벤트 처리하는데, 락을 통해 DisconnectHandler가 마지막에 이벤트 처리하도록.
-* 그렇게하면 disconnect immediately든, disconnect after send messages든, 사전 작업 후 disconnect를 처리할 수 있다.
-* */
 object EventBroker {
     private val eventConsumers:
         ConcurrentHashMap<KClass<out Event>, ConcurrentHashMap<KClass<out EventConsumer>, MutableList<EventConsumer>>> =
@@ -21,9 +14,10 @@ object EventBroker {
     private val threadPool = Executors.newFixedThreadPool(30)
     private var shutdown = AtomicBoolean(false)
     private val shutdownLock = Object()
+    private val thread = Thread(::listen)
 
-    init {
-        listen()
+    fun run() {
+        thread.start()
     }
 
     fun add(event: Event) {
@@ -54,8 +48,36 @@ object EventBroker {
         }
     }
 
+    fun deRegister(eventConsumer: EventConsumer) {
+        val eventConsumerClass = eventConsumer::class
+        val eventClasses = eventConsumer.getConsumingEvents().also { assert(it.isNotEmpty()) }
+
+        eventClasses.forEach { eventClass ->
+            eventConsumers.compute(eventClass) { _, eventConsumers ->
+                if (eventConsumers == null) {
+                    throw IllegalStateException("event $eventClass is not registered already")
+                } else {
+                    val eventConsumerInstances =
+                        eventConsumers[eventConsumerClass] ?: throw IllegalStateException(
+                            "consumer class $eventConsumerClass must have consumer instances",
+                        )
+                    if (!eventConsumerInstances.remove(eventConsumer)) {
+                        throw IllegalStateException("$eventConsumer is not registered already")
+                    }
+
+                    if (eventConsumerInstances.isEmpty()) {
+                        eventConsumers.remove(eventConsumerClass)
+                    }
+
+                    eventConsumers
+                }
+            }
+        }
+    }
+
     fun shutdown() {
         if (shutdown.compareAndSet(false, true)) {
+            events.add(EventBrokerShutdown())
             val t =
                 Thread {
                     synchronized(shutdownLock) {
@@ -66,21 +88,28 @@ object EventBroker {
                 }
             t.start()
             t.join()
+            thread.join()
             threadPool.shutdown()
         }
     }
 
     private fun listen() {
+        println("${Thread.currentThread().name} is running on event broker")
         while (true) {
             val event = events.take()
+            if (event is EventBrokerShutdown) {
+                shutdownLock.notify()
+                break
+            }
             val eventConsumers = requireNotNull(eventConsumers[event::class]).values.flatten()
             eventConsumers.forEach { eventConsumer ->
-                threadPool.execute {
-                    eventConsumer.consume(event)
-                }
+                eventConsumer.addEvent(event)
             }
-            if (shutdown.get() && events.isEmpty()) {
-                shutdownLock.notify()
+
+            eventConsumers.forEach { eventConsumer ->
+                threadPool.execute {
+                    eventConsumer.consumeEvent()
+                }
             }
         }
     }

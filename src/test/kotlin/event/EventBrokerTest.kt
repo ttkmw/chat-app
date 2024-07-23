@@ -4,7 +4,6 @@ import org.junit.jupiter.api.Test
 import org.mockito.Mockito.mock
 import java.nio.channels.SocketChannel
 import java.util.UUID
-import kotlin.reflect.KClass
 import kotlin.test.assertTrue
 
 class EventBrokerTest {
@@ -34,14 +33,6 @@ class EventBrokerTest {
     class MockEventConsumer : EventConsumer() {
         @OnEvent
         fun mockOnEvent(event: MockEvent) {
-        }
-
-        override fun consume(event: Event) {
-            TODO("Not yet implemented")
-        }
-
-        override fun getConsumingEvents(): Set<KClass<out Event>> {
-            return setOf(MockEvent::class)
         }
 
         class MockEvent(override val uuid: UUID) : Event

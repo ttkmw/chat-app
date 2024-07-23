@@ -1,5 +1,7 @@
 package event
 
+import java.util.concurrent.LinkedBlockingQueue
+import java.util.concurrent.locks.ReentrantLock
 import kotlin.reflect.KClass
 import kotlin.reflect.KFunction
 import kotlin.reflect.full.hasAnnotation
@@ -10,11 +12,9 @@ import kotlin.reflect.jvm.jvmErasure
 import kotlin.reflect.typeOf
 
 abstract class EventConsumer {
-    abstract fun consume(event: Event)
-
-    abstract fun getConsumingEvents(): Set<KClass<out Event>>
-
-    protected val onEvents: Map<KClass<out Event>, OnEventFunction>
+    private val onEvents: Map<KClass<out Event>, OnEventFunction>
+    private val events: LinkedBlockingQueue<Event> = LinkedBlockingQueue()
+    private val lock = ReentrantLock()
 
     init {
         @Suppress("UNCHECKED_CAST")
@@ -45,6 +45,26 @@ abstract class EventConsumer {
                 eventClass to OnEventFunction(method)
             }
                 .also { if (it.isEmpty()) throw IllegalStateException("$this has no ${OnEvent::class} method") }
+    }
+
+    fun addEvent(event: Event) {
+        // TODO: offer 로 바꾸고 에러처리
+        this.events.put(event)
+    }
+
+    fun consumeEvent(): Boolean {
+        lock.lock()
+        try {
+            val event = this.events.poll() ?: return false
+            (this.onEvents[event::class] ?: throw IllegalStateException("no onEventMethod")).call(this, event)
+            return true
+        } finally {
+            lock.unlock()
+        }
+    }
+
+    fun getConsumingEvents(): Set<KClass<out Event>> {
+        return this.onEvents.keys
     }
 
     class OnEventFunction(
