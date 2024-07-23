@@ -1,4 +1,4 @@
-import event.EventBroker
+import event.QueueEventBroker
 import java.net.InetSocketAddress
 import java.net.SocketAddress
 import java.nio.channels.SelectionKey
@@ -12,7 +12,7 @@ class ChatServer(private val serverSocketChannel: ServerSocketChannel, private v
 
     fun run() {
         println("${Thread.currentThread().name} is running on chat server 1")
-        EventBroker.run()
+        QueueEventBroker.run()
         while (true) {
             println("${Thread.currentThread().name} is running on chat server 2")
             selector.select()
@@ -23,7 +23,7 @@ class ChatServer(private val serverSocketChannel: ServerSocketChannel, private v
                 selectedKeyIterator.remove()
                 if (selectedKey.isAcceptable) {
                     val socketChannel = accept(selectedKey)
-                    val user = User.join(socketChannel = socketChannel, otherUsers = users.values.map { it.uuid })
+                    val user = User.join(channel = socketChannel, otherUsers = users.values.map { it.uuid })
                     users[socketChannel.remoteAddress] = user
                 } else if (selectedKey.isReadable) {
                     val user =

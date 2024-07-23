@@ -4,18 +4,19 @@ import event.MessageBroadcast
 import event.OnEvent
 import event.UserDisconnected
 import event.UserJoined
+import socket.Channel
 import java.nio.ByteBuffer
 import java.nio.CharBuffer
-import java.nio.channels.SocketChannel
 import java.util.UUID
 import java.util.concurrent.atomic.AtomicBoolean
 import java.util.concurrent.locks.ReentrantLock
 
 class User(
     val uuid: UUID,
-    private val socketChannel: SocketChannel,
-) : EventConsumer() {
-    private val readLock = ReentrantLock()
+    private val channel: Channel,
+    eventBroker: EventBroker,
+) : EventConsumer(eventBroker) {
+    private val lock = ReentrantLock()
     private val disconnected = AtomicBoolean(false)
 
     fun read() {
@@ -25,45 +26,45 @@ class User(
         val message = StringBuilder()
         val byteBuffer = ByteBuffer.allocate(1024)
 
-        readLock.lock()
-        try {
-            while (socketChannel.read(byteBuffer).also {
-                    if (it == -1) {
-                        if (disconnected.compareAndSet(false, true)) {
-                            disconnect()
-                        }
+        while (channel.read(byteBuffer).also {
+                if (it == Channel.ReadState.DISCONNECTED) {
+                    if (disconnected.compareAndSet(false, true)) {
+                        disconnect()
                     }
-                } > 0
-            ) {
-                message.append(UTF8Codec.DECODER.decode(byteBuffer).toString())
-                byteBuffer.clear()
-            }
+                }
+            } == Channel.ReadState.REMAINING
+        ) {
+            message.append(UTF8Codec.DECODER.decode(byteBuffer).toString())
+            byteBuffer.clear()
+        }
 
+        lock.lock()
+        try {
             if (message.isNotEmpty()) {
                 ChatMessage.broadcast(
                     from = this.uuid,
                     message = message.toString(),
                 ).apply {
-                    EventBroker.add(
+                    eventBroker.add(
                         MessageBroadcast(
                             uuid = this.uuid,
-                            from = this@User.uuid,
+                            from = this.from,
                             message = this.message,
                         ),
                     )
                 }
             }
         } finally {
-            readLock.unlock()
+            lock.unlock()
         }
     }
 
     private fun disconnect() {
         // todo: close할땐 에러날 가능성이 없나? 에러가 난다면, finally로 처리해줘야하는거?
-        socketChannel.close().also {
-            EventBroker.add(UserDisconnected(this.uuid))
+        channel.close().also {
+            eventBroker.add(UserDisconnected(this.uuid))
+            eventBroker.deRegister(this)
         }
-        EventBroker.deRegister(this)
     }
 
     @OnEvent
@@ -107,7 +108,7 @@ class User(
     }
 
     private fun sendWelcomeMessage(otherUsers: List<UUID>) {
-        val message = StringBuilder("Welcome [${socketChannel.remoteAddress}] ")
+        val message = StringBuilder("Welcome [${channel.remoteAddress}] ")
         if (otherUsers.isEmpty()) {
             message.append("You are the first user in beyond eyesight network.\n")
         } else {
@@ -122,21 +123,23 @@ class User(
         while (charBuffer.hasRemaining()) {
             UTF8Codec.ENCODER.encode(charBuffer, byteBuffer, false)
             byteBuffer.flip()
-            this.socketChannel.write(byteBuffer)
+            this.channel.write(byteBuffer)
             byteBuffer.clear()
         }
     }
 
     companion object {
         fun join(
-            socketChannel: SocketChannel,
+            channel: Channel,
             otherUsers: List<UUID>,
+            eventBroker: EventBroker,
         ): User {
             return User(
                 uuid = UUID.randomUUID(),
-                socketChannel = socketChannel,
+                channel = channel,
+                eventBroker = eventBroker,
             ).apply {
-                EventBroker.add(
+                eventBroker.add(
                     UserJoined(
                         uuid = this.uuid,
                         otherUsers = otherUsers,

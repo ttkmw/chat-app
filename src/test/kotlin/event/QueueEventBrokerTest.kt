@@ -6,7 +6,7 @@ import java.nio.channels.SocketChannel
 import java.util.UUID
 import kotlin.test.assertTrue
 
-class EventBrokerTest {
+class QueueEventBrokerTest {
     @Test
     fun register() {
         // given
@@ -19,13 +19,13 @@ class EventBrokerTest {
 
         // when
         eventConsumers.forEach {
-            EventBroker.register(it)
+            QueueEventBroker.register(it)
         }
 
         // then
         eventConsumers.forEach { eventConsumer ->
             eventConsumer.getConsumingEvents().forEach { event ->
-                assertTrue { EventBroker.isRegistered(event, eventConsumer) }
+                assertTrue { QueueEventBroker.isRegistered(event, eventConsumer) }
             }
         }
     }

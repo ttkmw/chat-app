@@ -11,7 +11,9 @@ import kotlin.reflect.full.valueParameters
 import kotlin.reflect.jvm.jvmErasure
 import kotlin.reflect.typeOf
 
-abstract class EventConsumer {
+abstract class EventConsumer(
+    protected val eventBroker: EventBroker,
+) {
     private val onEvents: Map<KClass<out Event>, OnEventFunction>
     private val events: LinkedBlockingQueue<Event> = LinkedBlockingQueue()
     private val lock = ReentrantLock()
