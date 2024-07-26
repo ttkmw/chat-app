@@ -13,7 +13,7 @@ interface Channel {
     val remoteAddress: SocketAddress
 
     enum class ReadState {
-        REMAINING,
+        SUCCESS,
         FINISHED,
         DISCONNECTED,
     }

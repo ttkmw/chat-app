@@ -23,7 +23,12 @@ class ChatServer(private val serverSocketChannel: ServerSocketChannel, private v
                 selectedKeyIterator.remove()
                 if (selectedKey.isAcceptable) {
                     val socketChannel = accept(selectedKey)
-                    val user = User.join(channel = socketChannel, otherUsers = users.values.map { it.uuid })
+                    val user =
+                        User.join(
+                            socketChannel = socketChannel,
+                            otherUsers = users.values.map { it.uuid },
+                            eventBroker = QueueEventBroker,
+                        )
                     users[socketChannel.remoteAddress] = user
                 } else if (selectedKey.isReadable) {
                     val user =

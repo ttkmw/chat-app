@@ -1,9 +1,9 @@
 package event
 
+import User
 import org.junit.jupiter.api.Test
 import org.mockito.Mockito.mock
 import java.nio.channels.SocketChannel
-import java.util.UUID
 import kotlin.test.assertTrue
 
 class QueueEventBrokerTest {
@@ -12,8 +12,16 @@ class QueueEventBrokerTest {
         // given
         val eventConsumers =
             listOf(
-                User.join(mock(SocketChannel::class.java)),
-                User.join(mock(SocketChannel::class.java)),
+                User.join(
+                    socketChannel = mock(SocketChannel::class.java),
+                    otherUsers = emptyList(),
+                    eventBroker = mock(EventBroker::class.java),
+                ),
+                User.join(
+                    socketChannel = mock(SocketChannel::class.java),
+                    otherUsers = emptyList(),
+                    eventBroker = mock(EventBroker::class.java),
+                ),
                 MockEventConsumer(),
             )
 
@@ -30,11 +38,11 @@ class QueueEventBrokerTest {
         }
     }
 
-    class MockEventConsumer : EventConsumer() {
+    class MockEventConsumer : EventConsumer(mock(EventBroker::class.java)) {
         @OnEvent
         fun mockOnEvent(event: MockEvent) {
         }
 
-        class MockEvent(override val uuid: UUID) : Event
+        class MockEvent : Event
     }
 }
