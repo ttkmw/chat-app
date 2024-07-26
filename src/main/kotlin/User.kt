@@ -4,6 +4,7 @@ import event.MessageBroadcast
 import event.OnEvent
 import event.UserDisconnected
 import event.UserJoined
+import java.net.SocketAddress
 import java.nio.ByteBuffer
 import java.nio.CharBuffer
 import java.nio.channels.SocketChannel
@@ -105,18 +106,15 @@ class User(
     }
 
     private fun sendNewUserHasJoinedMessage(newUserUuid: UUID) {
-        val message = StringBuilder("There is new user: [$newUserUuid]\n")
-        sendMessage(message.toString())
+        sendMessage(NEW_USER_HAS_JOINED_MESSAGE(newUserUuid))
     }
 
     private fun sendWelcomeMessage(otherUsers: List<UUID>) {
-        val message = StringBuilder("Welcome [${socketChannel.remoteAddress}] ")
         if (otherUsers.isEmpty()) {
-            message.append("You are the first user in beyond eyesight network.\n")
+            sendMessage(WELCOME_MESSAGE_WHEN_THERE_ARE_NOT_EXISTING_USERS_FORMAT(socketChannel.remoteAddress))
         } else {
-            message.append("There is ${otherUsers.size} users - ${otherUsers.joinToString(separator = ",")}\n")
+            sendMessage(WELCOME_MESSAGE_WHEN_THERE_ARE_EXISTING_USERS_FORMAT(socketChannel.remoteAddress, otherUsers))
         }
-        sendMessage(message.toString())
     }
 
     private fun sendMessage(message: String) {
@@ -157,4 +155,14 @@ class User(
             }
         }
     }
+}
+
+internal val WELCOME_MESSAGE_WHEN_THERE_ARE_NOT_EXISTING_USERS_FORMAT = { socketAddress: SocketAddress ->
+    String.format("Welcome [%s], You are the first user in beyond eyesight network.\n", socketAddress)
+}
+internal val WELCOME_MESSAGE_WHEN_THERE_ARE_EXISTING_USERS_FORMAT = { socketAddress: SocketAddress, otherUsers: List<UUID> ->
+    String.format("Welcome [%s], There is %d users - %s\n", socketAddress, otherUsers.size, otherUsers.joinToString(separator = ","))
+}
+internal val NEW_USER_HAS_JOINED_MESSAGE = { newUserUuid: UUID ->
+    String.format("There is new user: [$newUserUuid]\n")
 }

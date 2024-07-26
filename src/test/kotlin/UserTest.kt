@@ -1,5 +1,6 @@
 import event.EventBroker
 import event.MessageBroadcast
+import event.UserJoined
 import org.junit.jupiter.api.Test
 import org.mockito.Mockito.mock
 import org.mockito.Mockito.times
@@ -7,6 +8,8 @@ import org.mockito.Mockito.verify
 import org.mockito.Mockito.`when`
 import org.mockito.kotlin.any
 import org.mockito.kotlin.argumentCaptor
+import org.mockito.kotlin.doAnswer
+import java.net.InetSocketAddress
 import java.nio.ByteBuffer
 import java.nio.CharBuffer
 import java.nio.channels.SocketChannel
@@ -17,6 +20,73 @@ import kotlin.test.assertEquals
 import kotlin.test.assertTrue
 
 class UserTest {
+    @Test
+    fun onJoined() {
+        // given
+        val newUserUuid = UUID.randomUUID()
+        val mockNewUserSocket = mock(SocketChannel::class.java)
+        `when`(mockNewUserSocket.remoteAddress).then { InetSocketAddress("localhost", 8081) }
+        val newUser =
+            User(
+                uuid = newUserUuid,
+                socketChannel = mockNewUserSocket,
+                readLock = ReentrantLock(),
+                writeLock = ReentrantLock(),
+                eventBroker = mock(EventBroker::class.java),
+            )
+
+        val existingUserUuid = UUID.randomUUID()
+        val mockExistingUserSocket = mock(SocketChannel::class.java)
+        val existingUser =
+            User(
+                uuid = existingUserUuid,
+                socketChannel = mockExistingUserSocket,
+                readLock = ReentrantLock(),
+                writeLock = ReentrantLock(),
+                eventBroker = mock(EventBroker::class.java),
+            )
+
+        val event =
+            UserJoined(
+                uuid = newUserUuid,
+                otherUsers = listOf(existingUserUuid),
+            )
+
+        // when
+        var captured: ByteBuffer? = null
+        doAnswer { invocation ->
+            val original = invocation.getArgument<ByteBuffer>(0)
+            captured = ByteBuffer.allocate(original.remaining())
+            original.mark()
+            captured!!.put(original)
+            original.reset()
+            captured!!.flip()
+            null
+        }.`when`(mockNewUserSocket).write(any<ByteBuffer>())
+
+        // when
+        newUser.onJoined(event)
+
+        // then
+        verify(mockNewUserSocket).write(any<ByteBuffer>())
+
+        val expectedByteBuffer = ByteBuffer.allocate(1024)
+        UTF8Codec.ENCODER.encode(
+            CharBuffer.wrap(
+                WELCOME_MESSAGE_WHEN_THERE_ARE_EXISTING_USERS_FORMAT(mockNewUserSocket.remoteAddress, listOf(existingUserUuid)),
+            ),
+            expectedByteBuffer,
+            false,
+        )
+        expectedByteBuffer.flip()
+
+        assertEquals(expectedByteBuffer, captured)
+        assertEquals(
+            WELCOME_MESSAGE_WHEN_THERE_ARE_EXISTING_USERS_FORMAT(mockNewUserSocket.remoteAddress, listOf(existingUserUuid)),
+            UTF8Codec.DECODER.decode(captured!!).toString(),
+        )
+    }
+
     @Test
     fun readWithLock() {
         // given
@@ -50,7 +120,8 @@ class UserTest {
 
         // then
         @Suppress("ControlFlowWithEmptyBody")
-        while (!threads.all { it.state == Thread.State.WAITING }) {}
+        while (!threads.all { it.state == Thread.State.WAITING }) {
+        }
         assertTrue { threads.all { it.state == Thread.State.WAITING } }
     }
 
