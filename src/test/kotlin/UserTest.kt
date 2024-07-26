@@ -14,10 +14,48 @@ import java.util.UUID
 import java.util.concurrent.CountDownLatch
 import java.util.concurrent.locks.ReentrantLock
 import kotlin.test.assertEquals
+import kotlin.test.assertTrue
 
 class UserTest {
     @Test
-    fun read() {
+    fun readWithLock() {
+        // given
+        val latch = CountDownLatch(1)
+
+        val mockSocketChannel = mock(SocketChannel::class.java)
+        `when`(mockSocketChannel.read(any<ByteBuffer>())).then {
+            latch.await()
+        }
+
+        val mockEventBroker = mock(EventBroker::class.java)
+        `when`(mockEventBroker.add(any<MessageBroadcast>())).then {
+            latch.countDown()
+        }
+
+        val readLock = ReentrantLock()
+        val user =
+            User(
+                uuid = UUID.randomUUID(),
+                socketChannel = mockSocketChannel,
+                readLock = readLock,
+                writeLock = mock(ReentrantLock::class.java),
+                eventBroker = mockEventBroker,
+            )
+
+        // when
+        val threads =
+            (0..1).map {
+                Thread { user.read() }
+            }.onEach { it.start() }
+
+        // then
+        @Suppress("ControlFlowWithEmptyBody")
+        while (!threads.all { it.state == Thread.State.WAITING }) {}
+        assertTrue { threads.all { it.state == Thread.State.WAITING } }
+    }
+
+    @Test
+    fun readWithoutLock() {
         // given
         val latch = CountDownLatch(1)
 
