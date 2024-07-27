@@ -7,7 +7,7 @@ interface EventBroker {
 
     fun register(eventConsumer: EventConsumer)
 
-    fun deRegister(eventConsumer: EventConsumer)
+    fun deregister(eventConsumer: EventConsumer)
 
     fun shutdown()
 }

@@ -48,7 +48,7 @@ object QueueEventBroker : EventBroker {
         }
     }
 
-    override fun deRegister(eventConsumer: EventConsumer) {
+    override fun deregister(eventConsumer: EventConsumer) {
         val eventConsumerClass = eventConsumer::class
         val eventClasses = eventConsumer.getConsumingEvents().also { assert(it.isNotEmpty()) }
 
@@ -96,7 +96,14 @@ object QueueEventBroker : EventBroker {
     private fun listen() {
         println("${Thread.currentThread().name} is running on event broker")
         while (true) {
-            val event = events.take()
+            val event: Event
+            try {
+                event = events.take()
+            } catch (_: InterruptedException) {
+                // TODO: log
+                continue
+            }
+
             if (event is EventBrokerShutdown) {
                 shutdownLock.notify()
                 break
@@ -108,7 +115,9 @@ object QueueEventBroker : EventBroker {
 
             eventConsumers.forEach { eventConsumer ->
                 threadPool.execute {
-                    eventConsumer.consumeEvent()
+                    if (!eventConsumer.consumeEvent()) {
+                        // TODO: log
+                    }
                 }
             }
         }

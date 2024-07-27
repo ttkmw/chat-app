@@ -69,7 +69,7 @@ open class User(
                 // TODO: log
             } finally {
                 eventBroker.add(UserDisconnected(this.uuid))
-                eventBroker.deRegister(this)
+                eventBroker.deregister(this)
             }
         }
     }
