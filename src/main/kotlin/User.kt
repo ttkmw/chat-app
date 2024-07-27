@@ -4,6 +4,7 @@ import event.MessageBroadcast
 import event.OnEvent
 import event.UserDisconnected
 import event.UserJoined
+import java.io.IOException
 import java.net.SocketAddress
 import java.nio.ByteBuffer
 import java.nio.CharBuffer
@@ -62,8 +63,11 @@ open class User(
 
     internal fun disconnect() {
         if (disconnected.compareAndSet(false, true)) {
-            // todo: close할땐 에러날 가능성이 없나? 에러가 난다면, finally로 처리해줘야하는거?
-            socketChannel.close().also {
+            try {
+                socketChannel.close()
+            } catch (e: IOException) {
+                // TODO: log
+            } finally {
                 eventBroker.add(UserDisconnected(this.uuid))
                 eventBroker.deRegister(this)
             }
