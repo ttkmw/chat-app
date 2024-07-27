@@ -97,11 +97,7 @@ open class User(
         if (event.from == this.uuid) {
             return
         }
-        val message = StringBuilder()
-        message.append("Message from [${event.from}] : ")
-        message.append(event.message)
-        message.append("\n")
-        sendMessage(message.toString())
+        sendMessage(BROADCAST_MESSAGE(event.from, event.message))
     }
 
     private fun sendNewUserHasJoinedMessage(newUserUuid: UUID) {
@@ -168,4 +164,8 @@ internal val NEW_USER_HAS_JOINED_MESSAGE = { newUserUuid: UUID ->
 
 internal val USER_IS_DISCONNECTED_MESSAGE = { disconnectedUserUuid: UUID ->
     String.format("[%s] is out of beyond eyesight network.\n", disconnectedUserUuid)
+}
+
+internal val BROADCAST_MESSAGE = { from: UUID, message: String ->
+    String.format("Message from [%s] : %S\n", from, message)
 }

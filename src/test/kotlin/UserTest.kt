@@ -22,6 +22,71 @@ import kotlin.test.assertTrue
 
 class UserTest {
     @Test
+    fun onMessageBroadcastWhenPublisherEqualsSubscriber() {
+        val mockUserSocket = mock(SocketChannel::class.java)
+        val user =
+            User(
+                uuid = UUID.randomUUID(),
+                socketChannel = mockUserSocket,
+                readLock = ReentrantLock(),
+                writeLock = ReentrantLock(),
+                eventBroker = mock(EventBroker::class.java),
+            )
+
+        val event =
+            MessageBroadcast(
+                uuid = UUID.randomUUID(),
+                from = user.uuid,
+                message = "this is message",
+            )
+
+        assertTrue { user.uuid == event.from }
+
+        // when
+        user.onMessageBroadcast(event)
+
+        // then
+        verify(mockUserSocket, times(0)).write(any<ByteBuffer>())
+    }
+
+    @Test
+    fun onMessageBroadcastFromOtherUser() {
+        // given
+        val mockUserSocket = mock(SocketChannel::class.java)
+        val user =
+            User(
+                uuid = UUID.randomUUID(),
+                socketChannel = mockUserSocket,
+                readLock = ReentrantLock(),
+                writeLock = ReentrantLock(),
+                eventBroker = mock(EventBroker::class.java),
+            )
+
+        val event =
+            MessageBroadcast(
+                uuid = UUID.randomUUID(),
+                from = UUID.randomUUID(),
+                message = "this is message",
+            )
+
+        assertTrue { user.uuid != event.from }
+
+        val captured = captureWrittenBuffer(mockUserSocket, ByteBuffer.allocate(1024))
+
+        // when
+        user.onMessageBroadcast(event)
+
+        // then
+        verify(mockUserSocket).write(any<ByteBuffer>())
+
+        assertEquals(convertToBuffer(BROADCAST_MESSAGE(event.from, event.message)), captured)
+        assertEquals(
+            BROADCAST_MESSAGE(event.from, event.message),
+            UTF8Codec.DECODER.decode(captured).toString(),
+        )
+    }
+
+    @Test
     fun onDisconnectedWhenPublisherAndSubscriberIsSame() {
         // given
         val userUuid = UUID.randomUUID()
@@ -98,16 +163,7 @@ class UserTest {
                 uuid = disconnectedUserUuid,
             )
 
-        var captured: ByteBuffer? = null
-        doAnswer { invocation ->
-            val original = invocation.getArgument<ByteBuffer>(0)
-            captured = ByteBuffer.allocate(original.remaining())
-            original.mark()
-            captured!!.put(original)
-            original.reset()
-            captured!!.flip()
-            null
-        }.`when`(mockUserSocket).write(any<ByteBuffer>())
+        val captured = captureWrittenBuffer(mockUserSocket, ByteBuffer.allocate(1024))
 
         // when
         user.onDisconnected(event)
@@ -115,20 +171,10 @@ class UserTest {
         // then
         verify(mockUserSocket).write(any<ByteBuffer>())
 
-        val expectedByteBuffer = ByteBuffer.allocate(1024)
-        UTF8Codec.ENCODER.encode(
-            CharBuffer.wrap(
-                USER_IS_DISCONNECTED_MESSAGE(disconnectedUserUuid),
-            ),
-            expectedByteBuffer,
-            false,
-        )
-        expectedByteBuffer.flip()
-
-        assertEquals(expectedByteBuffer, captured)
+        assertEquals(convertToBuffer(USER_IS_DISCONNECTED_MESSAGE(disconnectedUserUuid)), captured)
         assertEquals(
             USER_IS_DISCONNECTED_MESSAGE(disconnectedUserUuid),
-            UTF8Codec.DECODER.decode(captured!!).toString(),
+            UTF8Codec.DECODER.decode(captured).toString(),
         )
     }
 
@@ -153,16 +199,7 @@ class UserTest {
                 otherUsers = listOf(existingUserUuid),
             )
 
-        var captured: ByteBuffer? = null
-        doAnswer { invocation ->
-            val original = invocation.getArgument<ByteBuffer>(0)
-            captured = ByteBuffer.allocate(original.remaining())
-            original.mark()
-            captured!!.put(original)
-            original.reset()
-            captured!!.flip()
-            null
-        }.`when`(mockExistingUserSocket).write(any<ByteBuffer>())
+        val captured = captureWrittenBuffer(mockExistingUserSocket, ByteBuffer.allocate(1024))
 
         // when
         existingUser.onJoined(event)
@@ -170,19 +207,10 @@ class UserTest {
         // then
         verify(mockExistingUserSocket).write(any<ByteBuffer>())
 
-        val expectedByteBuffer = ByteBuffer.allocate(1024)
-        UTF8Codec.ENCODER.encode(
-            CharBuffer.wrap(
-                NEW_USER_HAS_JOINED_MESSAGE(newUserUuid),
-            ),
-            expectedByteBuffer,
-            false,
-        )
-        expectedByteBuffer.flip()
-        assertEquals(expectedByteBuffer, captured)
+        assertEquals(convertToBuffer(NEW_USER_HAS_JOINED_MESSAGE(newUserUuid)), captured)
         assertEquals(
             NEW_USER_HAS_JOINED_MESSAGE(newUserUuid),
-            UTF8Codec.DECODER.decode(captured!!).toString(),
+            UTF8Codec.DECODER.decode(captured).toString(),
         )
     }
 
@@ -207,16 +235,7 @@ class UserTest {
                 otherUsers = emptyList(),
             )
 
-        var captured: ByteBuffer? = null
-        doAnswer { invocation ->
-            val original = invocation.getArgument<ByteBuffer>(0)
-            captured = ByteBuffer.allocate(original.remaining())
-            original.mark()
-            captured!!.put(original)
-            original.reset()
-            captured!!.flip()
-            null
-        }.`when`(mockNewUserSocket).write(any<ByteBuffer>())
+        val captured = captureWrittenBuffer(mockNewUserSocket, ByteBuffer.allocate(1024))
 
         // when
         newUser.onJoined(event)
@@ -224,19 +243,10 @@ class UserTest {
         // then
         verify(mockNewUserSocket).write(any<ByteBuffer>())
 
-        val expectedByteBuffer = ByteBuffer.allocate(1024)
-        UTF8Codec.ENCODER.encode(
-            CharBuffer.wrap(
-                WELCOME_MESSAGE_WHEN_THERE_ARE_NOT_EXISTING_USERS_FORMAT(mockNewUserSocket.remoteAddress),
-            ),
-            expectedByteBuffer,
-            false,
-        )
-        expectedByteBuffer.flip()
-        assertEquals(expectedByteBuffer, captured)
+        assertEquals(convertToBuffer(WELCOME_MESSAGE_WHEN_THERE_ARE_NOT_EXISTING_USERS_FORMAT(mockNewUserSocket.remoteAddress)), captured)
         assertEquals(
             WELCOME_MESSAGE_WHEN_THERE_ARE_NOT_EXISTING_USERS_FORMAT(mockNewUserSocket.remoteAddress),
-            UTF8Codec.DECODER.decode(captured!!).toString(),
+            UTF8Codec.DECODER.decode(captured).toString(),
         )
     }
 
@@ -262,16 +272,7 @@ class UserTest {
                 otherUsers = listOf(existingUserUuid),
             )
 
-        var captured: ByteBuffer? = null
-        doAnswer { invocation ->
-            val original = invocation.getArgument<ByteBuffer>(0)
-            captured = ByteBuffer.allocate(original.remaining())
-            original.mark()
-            captured!!.put(original)
-            original.reset()
-            captured!!.flip()
-            null
-        }.`when`(mockNewUserSocket).write(any<ByteBuffer>())
+        val captured = captureWrittenBuffer(mockNewUserSocket, ByteBuffer.allocate(1024))
 
         // when
         newUser.onJoined(event)
@@ -279,20 +280,15 @@ class UserTest {
         // then
         verify(mockNewUserSocket).write(any<ByteBuffer>())
 
-        val expectedByteBuffer = ByteBuffer.allocate(1024)
-        UTF8Codec.ENCODER.encode(
-            CharBuffer.wrap(
+        assertEquals(
+            convertToBuffer(
                 WELCOME_MESSAGE_WHEN_THERE_ARE_EXISTING_USERS_FORMAT(mockNewUserSocket.remoteAddress, listOf(existingUserUuid)),
             ),
-            expectedByteBuffer,
-            false,
+            captured,
         )
-        expectedByteBuffer.flip()
-
-        assertEquals(expectedByteBuffer, captured)
         assertEquals(
             WELCOME_MESSAGE_WHEN_THERE_ARE_EXISTING_USERS_FORMAT(mockNewUserSocket.remoteAddress, listOf(existingUserUuid)),
-            UTF8Codec.DECODER.decode(captured!!).toString(),
+            UTF8Codec.DECODER.decode(captured).toString(),
         )
     }
 
@@ -383,5 +379,33 @@ class UserTest {
             .add(argumentCaptor.capture())
         assertEquals(secondMessage, argumentCaptor.firstValue.message)
         assertEquals(firstMessage, argumentCaptor.secondValue.message)
+    }
+
+    private fun convertToBuffer(string: String): ByteBuffer {
+        val expectedByteBuffer = ByteBuffer.allocate(1024)
+        UTF8Codec.ENCODER.encode(
+            CharBuffer.wrap(
+                string,
+            ),
+            expectedByteBuffer,
+            false,
+        )
+        expectedByteBuffer.flip()
+        return expectedByteBuffer
+    }
+
+    private fun captureWrittenBuffer(
+        mockUserSocket: SocketChannel,
+        captured: ByteBuffer,
+    ): ByteBuffer {
+        doAnswer { invocation ->
+            val original = invocation.getArgument<ByteBuffer>(0)
+            original.mark()
+            captured.put(original)
+            original.reset()
+            captured.flip()
+            null
+        }.`when`(mockUserSocket).write(any<ByteBuffer>())
+        return captured
     }
 }
