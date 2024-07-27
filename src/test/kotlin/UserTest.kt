@@ -21,7 +21,115 @@ import kotlin.test.assertTrue
 
 class UserTest {
     @Test
-    fun onJoined() {
+    fun onJoinedNewUserHasJoinedMessage() {
+        val existingUserUuid = UUID.randomUUID()
+        val mockExistingUserSocket = mock(SocketChannel::class.java)
+        `when`(mockExistingUserSocket.remoteAddress).then { InetSocketAddress("localhost", 8081) }
+        val existingUser =
+            User(
+                uuid = existingUserUuid,
+                socketChannel = mockExistingUserSocket,
+                readLock = ReentrantLock(),
+                writeLock = ReentrantLock(),
+                eventBroker = mock(EventBroker::class.java),
+            )
+
+        val newUserUuid = UUID.randomUUID()
+        val event =
+            UserJoined(
+                uuid = newUserUuid,
+                otherUsers = listOf(existingUserUuid),
+            )
+
+        var captured: ByteBuffer? = null
+        doAnswer { invocation ->
+            val original = invocation.getArgument<ByteBuffer>(0)
+            captured = ByteBuffer.allocate(original.remaining())
+            original.mark()
+            captured!!.put(original)
+            original.reset()
+            captured!!.flip()
+            null
+        }.`when`(mockExistingUserSocket).write(any<ByteBuffer>())
+
+        // when
+        existingUser.onJoined(event)
+
+        // then
+        verify(mockExistingUserSocket).write(any<ByteBuffer>())
+
+        val expectedByteBuffer = ByteBuffer.allocate(1024)
+        UTF8Codec.ENCODER.encode(
+            CharBuffer.wrap(
+                NEW_USER_HAS_JOINED_MESSAGE(newUserUuid),
+            ),
+            expectedByteBuffer,
+            false,
+        )
+        expectedByteBuffer.flip()
+        assertEquals(expectedByteBuffer, captured)
+        assertEquals(
+            NEW_USER_HAS_JOINED_MESSAGE(newUserUuid),
+            UTF8Codec.DECODER.decode(captured!!).toString(),
+        )
+    }
+
+    @Test
+    fun onJoinedWelcomeMessageWhenThereAreNotExistingUsers() {
+        // given
+        val newUserUuid = UUID.randomUUID()
+        val mockNewUserSocket = mock(SocketChannel::class.java)
+        `when`(mockNewUserSocket.remoteAddress).then { InetSocketAddress("localhost", 8081) }
+        val newUser =
+            User(
+                uuid = newUserUuid,
+                socketChannel = mockNewUserSocket,
+                readLock = ReentrantLock(),
+                writeLock = ReentrantLock(),
+                eventBroker = mock(EventBroker::class.java),
+            )
+
+        val event =
+            UserJoined(
+                uuid = newUserUuid,
+                otherUsers = emptyList(),
+            )
+
+        var captured: ByteBuffer? = null
+        doAnswer { invocation ->
+            val original = invocation.getArgument<ByteBuffer>(0)
+            captured = ByteBuffer.allocate(original.remaining())
+            original.mark()
+            captured!!.put(original)
+            original.reset()
+            captured!!.flip()
+            null
+        }.`when`(mockNewUserSocket).write(any<ByteBuffer>())
+
+        // when
+        newUser.onJoined(event)
+
+        // then
+        verify(mockNewUserSocket).write(any<ByteBuffer>())
+
+        val expectedByteBuffer = ByteBuffer.allocate(1024)
+        UTF8Codec.ENCODER.encode(
+            CharBuffer.wrap(
+                WELCOME_MESSAGE_WHEN_THERE_ARE_NOT_EXISTING_USERS_FORMAT(mockNewUserSocket.remoteAddress),
+            ),
+            expectedByteBuffer,
+            false,
+        )
+        expectedByteBuffer.flip()
+        assertEquals(expectedByteBuffer, captured)
+        assertEquals(
+            WELCOME_MESSAGE_WHEN_THERE_ARE_NOT_EXISTING_USERS_FORMAT(mockNewUserSocket.remoteAddress),
+            UTF8Codec.DECODER.decode(captured!!).toString(),
+        )
+    }
+
+    @Test
+    fun onJoinedWelcomeMessageWhenThereAreExistingUsers() {
         // given
         val newUserUuid = UUID.randomUUID()
         val mockNewUserSocket = mock(SocketChannel::class.java)
@@ -36,23 +144,12 @@ class UserTest {
             )
 
         val existingUserUuid = UUID.randomUUID()
-        val mockExistingUserSocket = mock(SocketChannel::class.java)
-        val existingUser =
-            User(
-                uuid = existingUserUuid,
-                socketChannel = mockExistingUserSocket,
-                readLock = ReentrantLock(),
-                writeLock = ReentrantLock(),
-                eventBroker = mock(EventBroker::class.java),
-            )
-
         val event =
             UserJoined(
                 uuid = newUserUuid,
                 otherUsers = listOf(existingUserUuid),
             )
 
-        // when
         var captured: ByteBuffer? = null
         doAnswer { invocation ->
             val original = invocation.getArgument<ByteBuffer>(0)
@@ -88,7 +185,7 @@ class UserTest {
     }
 
     @Test
-    fun readWithLock() {
+    fun readWithLockThreadSafe() {
         // given
         val latch = CountDownLatch(1)
 
@@ -126,7 +223,7 @@ class UserTest {
     }
 
     @Test
-    fun readWithoutLock() {
+    fun readWithoutLockThreadSafe() {
         // given
         val latch = CountDownLatch(1)
 
