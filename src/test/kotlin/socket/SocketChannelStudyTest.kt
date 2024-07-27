@@ -13,7 +13,7 @@ import java.nio.channels.SocketChannel
 import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.Executors
 
-class NioChannelTest {
+class SocketChannelStudyTest {
     private val channels = ConcurrentHashMap<SocketAddress, NioChannel>()
     private val threadPool = Executors.newFixedThreadPool(10)
 

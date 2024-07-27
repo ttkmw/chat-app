@@ -139,7 +139,7 @@ class EventBroker private constructor(
             try {
                 event = events.take()
             } catch (_: InterruptedException) {
-                // TODO: log
+                println("${EventBroker::class} is interrupted, but keep listening.")
                 continue
             }
 
@@ -154,8 +154,12 @@ class EventBroker private constructor(
 
             eventConsumers.forEach { eventConsumer ->
                 threadPool.execute {
-                    if (!eventConsumer.consumeEvent()) {
-                        // TODO: log
+                    try {
+                        if (!eventConsumer.consumeEvent()) {
+                            println("$eventConsumer failed to consume event unexpectedly")
+                        }
+                    } catch (e: Exception) {
+                        println("$eventConsumer failed to handle event - ${e.cause}")
                     }
                 }
             }
