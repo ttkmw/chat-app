@@ -1,20 +1,59 @@
 package event
 
+import java.util.concurrent.BlockingQueue
 import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.Executors
 import java.util.concurrent.LinkedBlockingQueue
 import java.util.concurrent.atomic.AtomicBoolean
 import kotlin.reflect.KClass
 
-object QueueEventBroker : EventBroker {
+class QueueEventBroker private constructor(
+    private val events: BlockingQueue<Event>,
+    @Suppress("PLATFORM_CLASS_MAPPED_TO_KOTLIN")
+    private val shutdownLock: Object,
+    threadPoolCount: Int,
+) : EventBroker {
     private val eventConsumers:
         ConcurrentHashMap<KClass<out Event>, ConcurrentHashMap<KClass<out EventConsumer>, MutableList<EventConsumer>>> =
         ConcurrentHashMap()
-    private val events = LinkedBlockingQueue<Event>()
-    private val threadPool = Executors.newFixedThreadPool(30)
+    private val threadPool = Executors.newFixedThreadPool(threadPoolCount)
     private var shutdown = AtomicBoolean(false)
-    private val shutdownLock = Object()
     private val thread = Thread(::listen)
+
+    companion object {
+        @Volatile
+        private var instance: QueueEventBroker? = null
+
+        fun initialize(
+            events: BlockingQueue<Event>,
+            @Suppress("PLATFORM_CLASS_MAPPED_TO_KOTLIN")
+            shutdownLock: Object,
+            threadPoolCount: Int,
+        ): QueueEventBroker {
+            synchronized(this) {
+                if (instance != null) {
+                    throw IllegalStateException("$QueueEventBroker is already initialized")
+                } else {
+                    instance = QueueEventBroker(events, shutdownLock, threadPoolCount)
+                    return instance!!
+                }
+            }
+        }
+
+        fun get(): QueueEventBroker {
+            return instance ?: synchronized(this) {
+                if (instance != null) {
+                    instance!!
+                } else {
+                    initialize(
+                        LinkedBlockingQueue(),
+                        Object(),
+                        30,
+                    )
+                }
+            }
+        }
+    }
 
     override fun run() {
         thread.start()
