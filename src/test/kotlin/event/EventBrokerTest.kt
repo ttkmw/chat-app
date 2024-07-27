@@ -2,11 +2,33 @@ package event
 
 import User
 import org.junit.jupiter.api.Test
+import org.junit.jupiter.api.assertThrows
 import org.mockito.Mockito.mock
 import java.nio.channels.SocketChannel
+import java.util.concurrent.LinkedBlockingQueue
+import kotlin.test.assertNotNull
 import kotlin.test.assertTrue
 
 class EventBrokerTest {
+    @Test
+    fun initialize() {
+        assertNotNull(
+            EventBroker.initialize(
+                LinkedBlockingQueue(),
+                Object(),
+                30,
+            ),
+        )
+
+        assertThrows<IllegalStateException>("${EventBroker::class} is already initialized") {
+            EventBroker.initialize(
+                LinkedBlockingQueue(),
+                Object(),
+                30,
+            )
+        }
+    }
+
     @Test
     fun register() {
         // given
