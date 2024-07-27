@@ -23,7 +23,7 @@ open class User(
 
     fun read() {
         if (disconnected.get()) {
-            throw IllegalStateException("User is disconnected.")
+            throw IllegalStateException(USER_IS_DISCONNECTED_ERROR(uuid))
         }
         val message = StringBuilder()
         val byteBuffer = ByteBuffer.allocate(1024)
@@ -167,5 +167,9 @@ internal val USER_IS_DISCONNECTED_MESSAGE = { disconnectedUserUuid: UUID ->
 }
 
 internal val BROADCAST_MESSAGE = { from: UUID, message: String ->
-    String.format("Message from [%s] : %S\n", from, message)
+    String.format("Message from [%s] : %s\n", from, message)
+}
+
+internal val USER_IS_DISCONNECTED_ERROR = { disconnectedUserUuid: UUID ->
+    String.format("User %s is disconnected.", disconnectedUserUuid)
 }

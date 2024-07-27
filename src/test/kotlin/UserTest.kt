@@ -3,6 +3,7 @@ import event.MessageBroadcast
 import event.UserDisconnected
 import event.UserJoined
 import org.junit.jupiter.api.Test
+import org.junit.jupiter.api.assertThrows
 import org.mockito.Mockito.mock
 import org.mockito.Mockito.times
 import org.mockito.Mockito.verify
@@ -21,6 +22,56 @@ import kotlin.test.assertEquals
 import kotlin.test.assertTrue
 
 class UserTest {
+    @Test
+    fun readWhenUserIsDisconnected() {
+        val user =
+            User(
+                uuid = UUID.randomUUID(),
+                socketChannel = mock(SocketChannel::class.java),
+                readLock = ReentrantLock(),
+                writeLock = ReentrantLock(),
+                eventBroker = mock(EventBroker::class.java),
+            )
+        user.disconnect()
+
+        assertThrows<IllegalStateException>(USER_IS_DISCONNECTED_MESSAGE(user.uuid)) {
+            user.read()
+        }
+    }
+
+    @Test
+    fun readAndBroadcastMessage() {
+        // given
+        val mockSocketChannel = mock(SocketChannel::class.java)
+        val mockEventBroker = mock(EventBroker::class.java)
+        val user =
+            User(
+                uuid = UUID.randomUUID(),
+                socketChannel = mockSocketChannel,
+                readLock = ReentrantLock(),
+                writeLock = ReentrantLock(),
+                eventBroker = mockEventBroker,
+            )
+        val message = "this is message"
+        `when`(mockSocketChannel.read(any<ByteBuffer>())).thenAnswer { invocation ->
+            val byteBuffer = invocation.getArgument<ByteBuffer>(0)
+            UTF8Codec.ENCODER.encode(CharBuffer.wrap(message), byteBuffer, false)
+            1
+        }.then {
+            0
+        }
+
+        // when
+        user.read()
+
+        val argumentCaptor = argumentCaptor<MessageBroadcast>()
+        verify(mockEventBroker, times(1))
+            .add(argumentCaptor.capture())
+        val actual = argumentCaptor.firstValue
+        assertEquals(user.uuid, actual.from)
+        assertEquals(message, actual.message)
+    }
+
     @Test
     fun onMessageBroadcastWhenPublisherEqualsSubscriber() {
         val mockUserSocket = mock(SocketChannel::class.java)
