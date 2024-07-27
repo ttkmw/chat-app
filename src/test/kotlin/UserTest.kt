@@ -23,6 +23,26 @@ import kotlin.test.assertTrue
 
 class UserTest {
     @Test
+    fun join() {
+        val mockEventBroker = mock(EventBroker::class.java)
+        val otherUser: List<UUID> = mock()
+
+        val user =
+            User.join(
+                socketChannel = mock(SocketChannel::class.java),
+                otherUsers = otherUser,
+                eventBroker = mockEventBroker,
+            )
+
+        mockEventBroker.add(
+            UserJoined(
+                uuid = user.uuid,
+                otherUsers = otherUser,
+            ),
+        )
+    }
+
+    @Test
     fun readThenDisconnect() {
         // given
         val mockSocketChannel = mock(SocketChannel::class.java)
