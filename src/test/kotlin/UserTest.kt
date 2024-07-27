@@ -1,5 +1,6 @@
 import event.EventBroker
 import event.MessageBroadcast
+import event.UserDisconnected
 import event.UserJoined
 import org.junit.jupiter.api.Test
 import org.mockito.Mockito.mock
@@ -20,6 +21,117 @@ import kotlin.test.assertEquals
 import kotlin.test.assertTrue
 
 class UserTest {
+    @Test
+    fun onDisconnectedWhenPublisherAndSubscriberIsSame() {
+        // given
+        val userUuid = UUID.randomUUID()
+        val mockUserSocket = mock(SocketChannel::class.java)
+        val user =
+            User(
+                uuid = userUuid,
+                socketChannel = mockUserSocket,
+                readLock = ReentrantLock(),
+                writeLock = ReentrantLock(),
+                eventBroker = mock(EventBroker::class.java),
+            )
+        user.disconnect()
+
+        val event =
+            UserDisconnected(
+                uuid = userUuid,
+            )
+        assertTrue { user.uuid == event.uuid }
+
+        // when
+        user.onDisconnected(event)
+
+        // then
+        verify(mockUserSocket, times(0)).write(any<ByteBuffer>())
+    }
+
+    @Test
+    fun onDisconnectWhenMessageSubscriberIsDisconnected() {
+        // given
+        val userUuid = UUID.randomUUID()
+        val mockUserSocket = mock(SocketChannel::class.java)
+        val user =
+            User(
+                uuid = userUuid,
+                socketChannel = mockUserSocket,
+                readLock = ReentrantLock(),
+                writeLock = ReentrantLock(),
+                eventBroker = mock(EventBroker::class.java),
+            )
+        user.disconnect()
+
+        val disconnectedUserUuid = UUID.randomUUID()
+        val event =
+            UserDisconnected(
+                uuid = disconnectedUserUuid,
+            )
+        assertTrue { user.uuid != event.uuid }
+
+        // when
+        user.onDisconnected(event)
+
+        // then
+        verify(mockUserSocket, times(0)).write(any<ByteBuffer>())
+    }
+
+    @Test
+    fun onDisconnectedWhenOtherUserIsDisconnected() {
+        // given
+        val userUuid = UUID.randomUUID()
+        val mockUserSocket = mock(SocketChannel::class.java)
+        val user =
+            User(
+                uuid = userUuid,
+                socketChannel = mockUserSocket,
+                readLock = ReentrantLock(),
+                writeLock = ReentrantLock(),
+                eventBroker = mock(EventBroker::class.java),
+            )
+
+        val disconnectedUserUuid = UUID.randomUUID()
+        val event =
+            UserDisconnected(
+                uuid = disconnectedUserUuid,
+            )
+
+        var captured: ByteBuffer? = null
+        doAnswer { invocation ->
+            val original = invocation.getArgument<ByteBuffer>(0)
+            captured = ByteBuffer.allocate(original.remaining())
+            original.mark()
+            captured!!.put(original)
+            original.reset()
+            captured!!.flip()
+            null
+        }.`when`(mockUserSocket).write(any<ByteBuffer>())
+
+        // when
+        user.onDisconnected(event)
+
+        // then
+        verify(mockUserSocket).write(any<ByteBuffer>())
+
+        val expectedByteBuffer = ByteBuffer.allocate(1024)
+        UTF8Codec.ENCODER.encode(
+            CharBuffer.wrap(
+                USER_IS_DISCONNECTED_MESSAGE(disconnectedUserUuid),
+            ),
+            expectedByteBuffer,
+            false,
+        )
+        expectedByteBuffer.flip()
+
+        assertEquals(expectedByteBuffer, captured)
+        assertEquals(
+            USER_IS_DISCONNECTED_MESSAGE(disconnectedUserUuid),
+            UTF8Codec.DECODER.decode(captured!!).toString(),
+        )
+    }
+
     @Test
     fun onJoinedNewUserHasJoinedMessage() {
         val existingUserUuid = UUID.randomUUID()

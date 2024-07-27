@@ -12,7 +12,7 @@ import java.util.UUID
 import java.util.concurrent.atomic.AtomicBoolean
 import java.util.concurrent.locks.ReentrantLock
 
-class User(
+open class User(
     val uuid: UUID,
     private val socketChannel: SocketChannel,
     private val readLock: ReentrantLock,
@@ -32,9 +32,7 @@ class User(
         try {
             while (socketChannel.read(byteBuffer).also {
                     if (it == -1) {
-                        if (disconnected.compareAndSet(false, true)) {
-                            disconnect()
-                        }
+                        disconnect()
                     }
                 } > 0
             ) {
@@ -62,11 +60,13 @@ class User(
         }
     }
 
-    private fun disconnect() {
-        // todo: close할땐 에러날 가능성이 없나? 에러가 난다면, finally로 처리해줘야하는거?
-        socketChannel.close().also {
-            eventBroker.add(UserDisconnected(this.uuid))
-            eventBroker.deRegister(this)
+    internal fun disconnect() {
+        if (disconnected.compareAndSet(false, true)) {
+            // todo: close할땐 에러날 가능성이 없나? 에러가 난다면, finally로 처리해줘야하는거?
+            socketChannel.close().also {
+                eventBroker.add(UserDisconnected(this.uuid))
+                eventBroker.deRegister(this)
+            }
         }
     }
 
@@ -80,8 +80,7 @@ class User(
             return
         }
 
-        val message = StringBuilder("[${event.uuid}] is out of beyond eyesight network.\n")
-        sendMessage(message.toString())
+        sendMessage(USER_IS_DISCONNECTED_MESSAGE(event.uuid))
     }
 
     @OnEvent
@@ -165,4 +164,8 @@ internal val WELCOME_MESSAGE_WHEN_THERE_ARE_EXISTING_USERS_FORMAT = { socketAddr
 }
 internal val NEW_USER_HAS_JOINED_MESSAGE = { newUserUuid: UUID ->
     String.format("There is new user: [$newUserUuid]\n")
+}
+
+internal val USER_IS_DISCONNECTED_MESSAGE = { disconnectedUserUuid: UUID ->
+    String.format("[%s] is out of beyond eyesight network.\n", disconnectedUserUuid)
 }
