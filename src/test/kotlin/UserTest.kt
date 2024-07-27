@@ -23,6 +23,42 @@ import kotlin.test.assertTrue
 
 class UserTest {
     @Test
+    fun readThenDisconnect() {
+        // given
+        val mockSocketChannel = mock(SocketChannel::class.java)
+        val mockEventBroker = mock(EventBroker::class.java)
+        val user =
+            User(
+                uuid = UUID.randomUUID(),
+                socketChannel = mockSocketChannel,
+                readLock = ReentrantLock(),
+                writeLock = ReentrantLock(),
+                eventBroker = mockEventBroker,
+            )
+        val message = "this is message"
+        `when`(mockSocketChannel.read(any<ByteBuffer>())).thenAnswer { invocation ->
+            val byteBuffer = invocation.getArgument<ByteBuffer>(0)
+            UTF8Codec.ENCODER.encode(CharBuffer.wrap(message), byteBuffer, false)
+            1
+        }.then {
+            -1
+        }
+
+        // when
+        user.read()
+
+        // then
+        val argumentCaptor = argumentCaptor<MessageBroadcast>()
+        verify(mockEventBroker, times(1))
+            .add(argumentCaptor.capture())
+        val actual = argumentCaptor.firstValue
+        assertEquals(user.uuid, actual.from)
+        assertEquals(message, actual.message)
+
+        verify(mockSocketChannel).close()
+    }
+
+    @Test
     fun readWhenUserIsDisconnected() {
         val user =
             User(
