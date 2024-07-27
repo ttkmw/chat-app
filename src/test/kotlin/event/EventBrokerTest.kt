@@ -6,7 +6,7 @@ import org.mockito.Mockito.mock
 import java.nio.channels.SocketChannel
 import kotlin.test.assertTrue
 
-class QueueEventBrokerTest {
+class EventBrokerTest {
     @Test
     fun register() {
         // given
@@ -25,15 +25,16 @@ class QueueEventBrokerTest {
                 MockEventConsumer(),
             )
 
+        val eventBroker = EventBroker.get()
         // when
         eventConsumers.forEach {
-            QueueEventBroker.register(it)
+            eventBroker.register(it)
         }
 
         // then
         eventConsumers.forEach { eventConsumer ->
             eventConsumer.getConsumingEvents().forEach { event ->
-                assertTrue { QueueEventBroker.isRegistered(event, eventConsumer) }
+                assertTrue { eventBroker.isRegistered(event, eventConsumer) }
             }
         }
     }

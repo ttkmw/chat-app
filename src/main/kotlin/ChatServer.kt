@@ -1,4 +1,4 @@
-import event.QueueEventBroker
+import event.EventBroker
 import java.net.InetSocketAddress
 import java.net.SocketAddress
 import java.nio.channels.SelectionKey
@@ -6,13 +6,20 @@ import java.nio.channels.Selector
 import java.nio.channels.ServerSocketChannel
 import java.nio.channels.SocketChannel
 import java.util.concurrent.ConcurrentHashMap
+import java.util.concurrent.LinkedBlockingQueue
 
 class ChatServer(private val serverSocketChannel: ServerSocketChannel, private val selector: Selector) {
     private val users = ConcurrentHashMap<SocketAddress, User>()
 
     fun run() {
         println("${Thread.currentThread().name} is running on chat server 1")
-        QueueEventBroker.run()
+        val eventBroker =
+            EventBroker.initialize(
+                LinkedBlockingQueue(),
+                Object(),
+                30,
+            )
+        eventBroker.run()
         while (true) {
             println("${Thread.currentThread().name} is running on chat server 2")
             selector.select()
@@ -27,7 +34,7 @@ class ChatServer(private val serverSocketChannel: ServerSocketChannel, private v
                         User.join(
                             socketChannel = socketChannel,
                             otherUsers = users.values.map { it.uuid },
-                            eventBroker = QueueEventBroker,
+                            eventBroker = eventBroker,
                         )
                     users[socketChannel.remoteAddress] = user
                 } else if (selectedKey.isReadable) {
