@@ -146,6 +146,7 @@ open class User(
                 readLock = ReentrantLock(),
                 writeLock = ReentrantLock(),
             ).apply {
+                eventBroker.register(this)
                 eventBroker.add(
                     UserJoined(
                         uuid = this.uuid,

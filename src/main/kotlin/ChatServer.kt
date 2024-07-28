@@ -8,22 +8,25 @@ import java.nio.channels.SocketChannel
 import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.Executors
 import java.util.concurrent.LinkedBlockingQueue
+import java.util.concurrent.atomic.AtomicBoolean
 
 class ChatServer(private val serverSocketChannel: ServerSocketChannel, private val selector: Selector) {
     private val users = ConcurrentHashMap<SocketAddress, User>()
+    private val eventBroker =
+        EventBroker.initialize(
+            LinkedBlockingQueue(),
+            Object(),
+            Executors.newFixedThreadPool(30),
+        )
+    private val shutdown = AtomicBoolean(false)
 
     fun run() {
-        println("${Thread.currentThread().name} is running on chat server 1")
-        val eventBroker =
-            EventBroker.initialize(
-                LinkedBlockingQueue(),
-                Object(),
-                Executors.newFixedThreadPool(30),
-            )
         eventBroker.run()
         while (true) {
-            println("${Thread.currentThread().name} is running on chat server 2")
             selector.select()
+            if (!selector.isOpen) {
+                break
+            }
             val selectedKeys = selector.selectedKeys()
             val selectedKeyIterator = selectedKeys.iterator()
             while (selectedKeyIterator.hasNext()) {
@@ -58,9 +61,12 @@ class ChatServer(private val serverSocketChannel: ServerSocketChannel, private v
         return socketChannel
     }
 
-    fun close() {
-        serverSocketChannel.close()
-        selector.close()
+    fun shutdown() {
+        if (shutdown.compareAndSet(false, true)) {
+            eventBroker.shutdown()
+            serverSocketChannel.close()
+            selector.close()
+        }
     }
 
     companion object {
@@ -72,11 +78,20 @@ class ChatServer(private val serverSocketChannel: ServerSocketChannel, private v
             val selector = Selector.open()
             serverSocketChannel.register(selector, SelectionKey.OP_ACCEPT)
             val chatServer = ChatServer(serverSocketChannel, selector)
+            Runtime.getRuntime().addShutdownHook(
+                Thread {
+                    println("Shutdown hook triggered. Closing chat server...")
+                    chatServer.shutdown()
+                },
+            )
             try {
                 chatServer.run()
             } finally {
-                chatServer.close()
+                chatServer.shutdown()
             }
+        }
+
+        fun addShutdownHook(chatServer: ChatServer) {
         }
     }
 }
