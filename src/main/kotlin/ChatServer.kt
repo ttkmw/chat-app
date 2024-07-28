@@ -6,6 +6,7 @@ import java.nio.channels.Selector
 import java.nio.channels.ServerSocketChannel
 import java.nio.channels.SocketChannel
 import java.util.concurrent.ConcurrentHashMap
+import java.util.concurrent.Executors
 import java.util.concurrent.LinkedBlockingQueue
 
 class ChatServer(private val serverSocketChannel: ServerSocketChannel, private val selector: Selector) {
@@ -17,7 +18,7 @@ class ChatServer(private val serverSocketChannel: ServerSocketChannel, private v
             EventBroker.initialize(
                 LinkedBlockingQueue(),
                 Object(),
-                30,
+                Executors.newFixedThreadPool(30),
             )
         eventBroker.run()
         while (true) {

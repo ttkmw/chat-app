@@ -9,6 +9,7 @@ import org.mockito.kotlin.doAnswer
 import org.mockito.kotlin.spy
 import org.mockito.kotlin.times
 import java.util.concurrent.CountDownLatch
+import java.util.concurrent.Executors
 import java.util.concurrent.LinkedBlockingQueue
 import kotlin.test.assertTrue
 
@@ -23,7 +24,7 @@ class EventBrokerTest {
             EventBroker.initialize(
                 LinkedBlockingQueue(),
                 Object(),
-                30,
+                Executors.newFixedThreadPool(30),
             )
         }
     }

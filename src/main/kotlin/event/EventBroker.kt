@@ -2,6 +2,7 @@ package event
 
 import java.util.concurrent.BlockingQueue
 import java.util.concurrent.ConcurrentHashMap
+import java.util.concurrent.ExecutorService
 import java.util.concurrent.Executors
 import java.util.concurrent.LinkedBlockingQueue
 import java.util.concurrent.atomic.AtomicBoolean
@@ -11,12 +12,11 @@ class EventBroker private constructor(
     private val events: BlockingQueue<Event>,
     @Suppress("PLATFORM_CLASS_MAPPED_TO_KOTLIN")
     private val shutdownLock: Object,
-    threadPoolCount: Int,
+    private val threadPool: ExecutorService,
 ) {
     private val eventConsumers:
         ConcurrentHashMap<KClass<out Event>, ConcurrentHashMap<KClass<out EventConsumer>, MutableList<EventConsumer>>> =
         ConcurrentHashMap()
-    private val threadPool = Executors.newFixedThreadPool(threadPoolCount)
     private var shutdown = AtomicBoolean(false)
     private val thread = Thread(::listen)
 
@@ -28,13 +28,13 @@ class EventBroker private constructor(
             events: BlockingQueue<Event>,
             @Suppress("PLATFORM_CLASS_MAPPED_TO_KOTLIN")
             shutdownLock: Object,
-            threadPoolCount: Int,
+            threadPool: ExecutorService,
         ): EventBroker {
             synchronized(this) {
                 if (instance != null) {
                     throw IllegalStateException("$EventBroker is already initialized")
                 } else {
-                    instance = EventBroker(events, shutdownLock, threadPoolCount)
+                    instance = EventBroker(events = events, shutdownLock = shutdownLock, threadPool = threadPool)
                     return instance!!
                 }
             }
@@ -48,7 +48,7 @@ class EventBroker private constructor(
                     initialize(
                         LinkedBlockingQueue(),
                         Object(),
-                        30,
+                        Executors.newFixedThreadPool(30),
                     )
                 }
             }
