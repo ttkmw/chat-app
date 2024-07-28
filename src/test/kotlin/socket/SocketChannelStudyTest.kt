@@ -14,7 +14,7 @@ import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.Executors
 
 class SocketChannelStudyTest {
-    private val channels = ConcurrentHashMap<SocketAddress, NioChannel>()
+    private val channels = ConcurrentHashMap<SocketAddress, SocketChannel>()
     private val threadPool = Executors.newFixedThreadPool(10)
 
     @Test
@@ -38,7 +38,7 @@ class SocketChannelStudyTest {
                         with(socketChannel) {
                             this.configureBlocking(false)
                             this.register(selector, SelectionKey.OP_READ)
-                            channels[socketChannel.remoteAddress] = NioChannel(socketChannel)
+                            channels[socketChannel.remoteAddress] = socketChannel
                         }
                     } else if (selectedKey.isReadable) {
                         val channel = channels[(selectedKey.channel() as SocketChannel).remoteAddress]!!

@@ -90,8 +90,5 @@ class ChatServer(private val serverSocketChannel: ServerSocketChannel, private v
                 chatServer.shutdown()
             }
         }
-
-        fun addShutdownHook(chatServer: ChatServer) {
-        }
     }
 }
