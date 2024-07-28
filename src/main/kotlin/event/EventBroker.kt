@@ -8,7 +8,7 @@ import java.util.concurrent.LinkedBlockingQueue
 import java.util.concurrent.atomic.AtomicBoolean
 import kotlin.reflect.KClass
 
-class EventBroker private constructor(
+class EventBroker internal constructor(
     private val events: BlockingQueue<Event>,
     @Suppress("PLATFORM_CLASS_MAPPED_TO_KOTLIN")
     private val shutdownLock: Object,
@@ -144,7 +144,9 @@ class EventBroker private constructor(
             }
 
             if (event is EventBrokerShutdown) {
-                shutdownLock.notify()
+                synchronized(shutdownLock) {
+                    shutdownLock.notify()
+                }
                 break
             }
             val eventConsumers = requireNotNull(eventConsumers[event::class]).values.flatten()

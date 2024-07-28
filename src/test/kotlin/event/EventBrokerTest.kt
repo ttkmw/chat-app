@@ -30,6 +30,66 @@ class EventBrokerTest {
     }
 
     @Test
+    fun shutdown() {
+        // given
+        val eventQueue = spy(LinkedBlockingQueue<Event>())
+        val shutdownLock = spy(Object())
+        val threadPool = spy(Executors.newFixedThreadPool(30))
+        val eventBroker =
+            EventBroker(
+                events = eventQueue,
+                shutdownLock = shutdownLock,
+                threadPool = threadPool,
+            )
+
+        val latch = CountDownLatch(1)
+        doAnswer { invocation ->
+            latch.countDown()
+            invocation.callRealMethod()
+        }.`when`(shutdownLock).wait()
+
+        doAnswer { invocation ->
+            latch.await()
+            invocation.callRealMethod()
+        }.`when`(eventQueue).take()
+
+        val eventConsumers =
+            listOf(
+                spy(MockEventConsumer()),
+                spy(MockEventConsumer()),
+            )
+
+        eventConsumers.forEach {
+            eventBroker.register(it)
+        }
+
+        eventConsumers.forEach { eventConsumer ->
+            eventConsumer.getConsumingEvents().forEach { event ->
+                assertTrue { eventBroker.isRegistered(event, eventConsumer) }
+            }
+        }
+
+        val events =
+            listOf(
+                MockEventConsumer.MockEvent(),
+                MockEventConsumer.MockEvent(),
+            )
+
+        events.forEach {
+            eventBroker.add(it)
+        }
+
+        eventBroker.run()
+
+        // when
+        eventBroker.shutdown()
+
+        // then
+        verify(shutdownLock).wait()
+        verify(threadPool).shutdown()
+    }
+
+    @Test
     fun run() {
         // given
         val eventConsumers =
