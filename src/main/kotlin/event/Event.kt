@@ -8,10 +8,6 @@ interface Event
 @Retention(AnnotationRetention.RUNTIME)
 annotation class OnEvent()
 
-@Target(AnnotationTarget.ANNOTATION_CLASS)
-@Retention(AnnotationRetention.SOURCE)
-annotation class SuppressUnused
-
 data class UserJoined(
     val uuid: UUID,
     val otherUsers: List<UUID>,
